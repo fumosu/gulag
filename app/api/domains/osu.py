@@ -69,6 +69,7 @@ from app.state.services import acquire_db_conn
 from app.utils import escape_enum
 from app.utils import make_safe_name
 from app.utils import pymysql_encode
+from common.ac import checks
 
 
 AVATARS_PATH = SystemPath.cwd() / ".data/avatars"
@@ -760,20 +761,7 @@ async def osuSubmitModularSelector(
         stacktrace = app.utils.get_appropriate_stacktrace()
         await app.state.services.log_strange_occurrence(stacktrace)
 
-    if (  # check for pp caps on ranked & approved maps for appropriate players.
-        score.bmap.awards_ranked_pp
-        and not (score.player.priv & Privileges.WHITELISTED or score.player.restricted)
-    ):
-        # Get the PP cap for the current context.
-        """# TODO: find where to put autoban pp
-        pp_cap = app.app.settings.AUTOBAN_PP[score.mode][score.mods & Mods.FLASHLIGHT != 0]
-
-        if score.pp > pp_cap:
-            await score.player.restrict(
-                admin=app.state.sessions.bot,
-                reason=f"[{score.mode!r} {score.mods!r}] autoban @ {score.pp:.2f}pp",
-            )
-        """
+    await checks.pp_check(score)
 
     """ Score submission checks completed; submit the score. """
 
@@ -901,6 +889,8 @@ async def osuSubmitModularSelector(
             # manually, so we'll probably do that in the future.
             replay_file = REPLAYS_PATH / f"{score.id}.osr"
             replay_file.write_bytes(replay_data)
+
+            await checks.analyse(score)
 
     """ Update the user's & beatmap's stats """
 

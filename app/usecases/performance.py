@@ -12,6 +12,7 @@ except ModuleNotFoundError:
 from peace_performance_python.objects import Beatmap as PeaceMap
 from peace_performance_python.objects import Calculator as PeaceCalculator
 
+from common.utils.calculator import calculate_performances_std 
 
 class DifficultyRating(TypedDict):
     performance: float
@@ -28,51 +29,6 @@ class StdTaikoCatchScore(TypedDict):
 class ManiaScore(TypedDict):
     mods: Optional[int]
     score: Optional[int]
-
-
-def calculate_performances_std(
-    osu_file_path: str,
-    scores: list[StdTaikoCatchScore],
-) -> list[DifficultyRating]:
-    with OppaiWrapper() as calculator:
-        calculator.set_mode(0)
-
-        results: list[DifficultyRating] = []
-
-        for score in scores:
-            if score["mods"] is not None:
-                calculator.set_mods(score["mods"])
-
-            if score["nmiss"] is not None:
-                calculator.set_nmiss(score["nmiss"])
-
-            if score["combo"] is not None:
-                calculator.set_combo(score["combo"])
-
-            if score["acc"] is not None:
-                calculator.set_accuracy_percent(score["acc"])
-
-            calculator.calculate(osu_file_path)
-
-            pp = calculator.get_pp()
-            sr = calculator.get_sr()
-
-            if math.isnan(pp) or math.isinf(pp):
-                # TODO: report to logserver
-                pp = 0.0
-                sr = 0.0
-            else:
-                pp = round(pp, 5)
-
-            results.append(
-                {
-                    "performance": pp,
-                    "star_rating": sr,
-                },
-            )
-
-    return results
-
 
 def calculate_performances_taiko(
     osu_file_path: str,

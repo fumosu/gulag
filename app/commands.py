@@ -63,6 +63,7 @@ from app.objects.score import SubmissionStatus
 from app.usecases.performance import ScoreDifficultyParams
 from app.utils import make_safe_name
 from app.utils import seconds_readable
+from common.commands import helpers
 
 try:
     from oppai_ng.oppai import OppaiWrapper
@@ -575,23 +576,30 @@ async def _with(ctx: Context) -> Optional[str]:
 @command(Privileges.NORMAL, aliases=["req"])
 async def request(ctx: Context) -> Optional[str]:
     """Request a beatmap for nomination."""
-    if ctx.args:
-        return "Invalid syntax: !request"
+    if (
+        len(ctx.args) != 2
+        or ctx.args[0] not in ("rank", "love")
+        or ctx.args[1] not in ("set", "map")
+    ):
+        return "Invalid syntax: !request <rank/love> <set/map>"
 
     if time.time() >= ctx.player.last_np["timeout"]:
         return "Please /np a map first!"
 
     bmap = ctx.player.last_np["bmap"]
+    new_status = RankedStatus(status_to_id(ctx.args[0]))
 
     if bmap.status != RankedStatus.Pending:
         return "Only pending maps may be requested for status change."
 
     await app.state.services.database.execute(
         "INSERT INTO map_requests "
-        "(map_id, player_id, datetime, active) "
-        "VALUES (:map_id, :user_id, NOW(), 1)",
-        {"map_id": bmap.id, "user_id": ctx.player.id},
+        "(map_id, player_id, status, datetime, active) "
+        "VALUES (:map_id, :user_id, :status, NOW(), 1)",
+        {"map_id": bmap.id, "user_id": ctx.player.id, "status": new_status},
     )
+
+    helpers.beatmap_request(ctx.player, bmap, ctx.args[1], new_status)
 
     return "Request submitted."
 
@@ -636,7 +644,7 @@ async def requests(ctx: Context) -> Optional[str]:
         return "Invalid syntax: !requests"
 
     rows = await app.state.services.database.fetch_all(
-        "SELECT map_id, player_id, datetime FROM map_requests WHERE active = 1",
+        "SELECT map_id, player_id, status, datetime FROM map_requests WHERE active = 1",
     )
 
     if not rows:
@@ -644,7 +652,7 @@ async def requests(ctx: Context) -> Optional[str]:
 
     l = [f"Total requests: {len(rows)}"]
 
-    for (map_id, player_id, dt) in rows:
+    for (map_id, player_id, status, dt) in rows:
         # find player & map for each row, and add to output.
         if not (p := await app.state.sessions.players.from_cache_or_sql(id=player_id)):
             l.append(f"Failed to find requesting player ({player_id})?")
@@ -654,7 +662,9 @@ async def requests(ctx: Context) -> Optional[str]:
             l.append(f"Failed to find requested map ({map_id})?")
             continue
 
-        l.append(f"[{p.embed} @ {dt:%b %d %I:%M%p}] {bmap.embed}.")
+        req_status = f"{RankedStatus(status)!s}".lower()
+
+        l.append(f"[{p.embed} @ {dt:%b %d %I:%M%p}] requested {bmap.embed} to be {req_status}.")
 
     return "\n".join(l)
 
@@ -727,6 +737,8 @@ async def _map(ctx: Context) -> Optional[str]:
             "UPDATE map_requests SET active = 0 WHERE map_id IN :map_ids",
             {"map_ids": map_ids},
         )
+
+    helpers.beatmap_update(ctx.player, bmap, ctx.args[1], new_status)
 
     return f"{bmap.embed} updated to {new_status!s}."
 
@@ -1538,6 +1550,25 @@ async def server(ctx: Context) -> Optional[str]:
         ),
     )
 
+
+@command(Privileges.NORMAL)
+async def link(ctx: Context) -> Optional[str]:
+    if ctx.player.discord_id:
+        return "You are already linked to a Discord account."
+
+    if not ctx.args:
+        return "Invalid syntax: !link <code>"
+
+    if discord_id := app.state.cache.discord_code[ctx.args[0]]:
+        ctx.player.discord_id = discord_id
+        await app.state.services.database.execute(
+            "UPDATE users SET discord_id = :discord_id WHERE id = :uid",
+            {"discord_id": discord_id, "uid": ctx.player.id}
+        )
+
+        return "Account linked!"
+    else:
+        return "Couldn't find your code. Perhaps try linking again?"
 
 if app.settings.DEVELOPER_MODE:
     """Advanced (& potentially dangerous) commands"""

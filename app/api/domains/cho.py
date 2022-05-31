@@ -59,6 +59,8 @@ from app.packets import BanchoPacketReader
 from app.packets import BasePacket
 from app.packets import ClientPackets
 from app.usecases.performance import ScoreDifficultyParams
+from common.cho import helpers
+from common.utils.timer import Timer
 
 
 BEATMAPS_PATH = Path.cwd() / ".data/osu"
@@ -85,9 +87,9 @@ async def bancho_http_handler():
         b"<!DOCTYPE html>"
         + "<br>".join(
             (
-                f"Running bancho.py v{app.settings.VERSION}",
+                f"Fumosu v{app.settings.VERSION}",
                 f"Players online: {len(app.state.sessions.players) - 1}",
-                '<a href="https://github.com/osuAkatsuki/bancho.py">Source code</a>',
+                '<a href="https://github.com/fumosu/gulag">Source code</a>',
                 "",
                 f"<b>packets handled ({len(packets)})</b>",
                 "<br>".join([f"{p.name} ({p.value})" for p in packets]),
@@ -266,6 +268,8 @@ class SendMessage(BasePacket):
             log(f"{p} wrote to {recipient} with insufficient privileges.")
             return
 
+        helpers.send_message(t_chan, msg, p)
+
         # limit message length to 2k chars
         # perhaps this could be dangerous with !py..?
         if len(msg) > 2000:
@@ -285,6 +289,7 @@ class SendMessage(BasePacket):
             # a command was triggered.
             if not cmd["hidden"]:
                 t_chan.send(msg, sender=p)
+                helpers.send_message(t_chan, msg, None, True)
                 if cmd["resp"] is not None:
                     t_chan.send_bot(cmd["resp"])
             else:
@@ -361,9 +366,9 @@ class StatsUpdateRequest(BasePacket):
 # TODO: these should probably be moved to the config.
 WELCOME_MSG = "\n".join(
     (
-        f"Welcome to {BASE_DOMAIN}.",
+        f"Welcome to Fumosu!",
         "To see a list of commands, use !help.",
-        "We have a public (Discord)[https://discord.gg/ShEQgUx]!",
+        "We have a public (Discord)[https://discord.gg/SvE65GsEXE]!",
         "Enjoy the server!",
     ),
 )
@@ -371,12 +376,13 @@ WELCOME_MSG = "\n".join(
 RESTRICTED_MSG = (
     "Your account is currently in restricted mode. "
     "If you believe this is a mistake, or have waited a period "
-    "greater than 3 months, you may appeal via the form on the site."
+    "greater than 1 month, you may appeal via contacting an admin through discord."
 )
 
-WELCOME_NOTIFICATION = app.packets.notification(
-    f"Welcome back to {BASE_DOMAIN}!\nRunning bancho.py v{app.settings.VERSION}.",
-)
+def WELCOME_NOTIFICATION(login_time: str):
+    return app.packets.notification(
+        f"Welcome back to Fumosu!\n\nAuthorization took: {login_time}"
+    )
 
 OFFLINE_NOTIFICATION = app.packets.notification(
     "The server is currently running in offline mode; "
@@ -473,6 +479,9 @@ async def login(
       other: valid id, logged in
     """
 
+    t = Timer()
+    t.start()
+
     # parse login data
     login_data = parse_login_data(body)
 
@@ -553,7 +562,7 @@ async def login(
         return {
             "osu_token": "unknown-username",
             "response_body": (
-                app.packets.notification(f"{BASE_DOMAIN}: Unknown username")
+                app.packets.notification(f"Fumosu: Unknown username")
                 + app.packets.user_id(-1)
             ),
         }
@@ -571,7 +580,9 @@ async def login(
 
     # get our bcrypt cache
     bcrypt_cache = app.state.cache.bcrypt
-    pw_bcrypt = user_info["pw_bcrypt"].encode()
+    pw_bcrypt = (
+        user_info["pw_bcrypt"].encode("ISO-8859-1").decode("unicode-escape").encode("ISO-8859-1")
+    )
     user_info["pw_bcrypt"] = pw_bcrypt
 
     # check credentials against db. algorithms like these are intentionally
@@ -581,16 +592,16 @@ async def login(
             return {
                 "osu_token": "incorrect-password",
                 "response_body": (
-                    app.packets.notification(f"{BASE_DOMAIN}: Incorrect password")
+                    app.packets.notification(f"Fumosu: Incorrect password")
                     + app.packets.user_id(-1)
                 ),
             }
     else:  # ~200ms
-        if not bcrypt.checkpw(login_data["password_md5"], pw_bcrypt):
+        if not helpers.check_password(login_data["password_md5"], pw_bcrypt):
             return {
                 "osu_token": "incorrect-password",
                 "response_body": (
-                    app.packets.notification(f"{BASE_DOMAIN}: Incorrect password")
+                    app.packets.notification(f"Fumosu: Incorrect password")
                     + app.packets.user_id(-1)
                 ),
             }
@@ -675,6 +686,8 @@ async def login(
 
     """ All checks passed, player is safe to login """
 
+    t.end()
+
     # get clan & clan priv if we're in a clan
     if user_info["clan_id"] != 0:
         clan = app.state.sessions.clans.get(id=user_info.pop("clan_id"))
@@ -743,7 +756,7 @@ async def login(
     # gets osu!direct & other in-game perks).
     data += app.packets.bancho_privileges(p.bancho_priv | ClientPrivileges.SUPPORTER)
 
-    data += WELCOME_NOTIFICATION
+    data += WELCOME_NOTIFICATION(t.time())
 
     # send all appropriate channel info to our player.
     # the osu! client will attempt to join the channels.

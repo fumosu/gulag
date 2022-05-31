@@ -306,6 +306,11 @@ class Beatmap:
         return self.full_name
 
     @property
+    def name(self) -> str:
+        """The osu! formatted name `self`."""
+        return f"{self.artist} - {self.title}"
+
+    @property
     def full_name(self) -> str:
         """The full osu! formatted name `self`."""
         return f"{self.artist} - {self.title} [{self.version}]"

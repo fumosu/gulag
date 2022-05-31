@@ -54,10 +54,19 @@ PP_CACHED_ACCURACIES: list[int] = [
         cast=CommaSeparatedStrings,
     )
 ]
+
 PP_CACHED_SCORES: list[int] = [
     int(score)
     for score in config(
         "PP_CACHED_SCORES",
+        cast=CommaSeparatedStrings,
+    )
+]
+
+AUTOBAN_PP: list[int] = [
+    int(score)
+    for score in config(
+        "AUTOBAN_PP",
         cast=CommaSeparatedStrings,
     )
 ]
@@ -72,6 +81,14 @@ DISALLOWED_PASSWORDS: CommaSeparatedStrings = config(
 )
 
 DISCORD_AUDIT_LOG_WEBHOOK: str = config("DISCORD_AUDIT_LOG_WEBHOOK")
+
+DISCORD_OSU_CHANNEL_WEBHOOK: str = config("DISCORD_OSU_CHANNEL_WEBHOOK")
+
+DISCORD_NOW_RANKED_WEBHOOK: str = config("DISCORD_NOW_RANKED_WEBHOOK")
+
+BOT_PREFIX: str = config("BOT_PREFIX")
+
+BOT_TOKEN: str = config("BOT_TOKEN")
 
 AUTOMATICALLY_REPORT_PROBLEMS: bool = config(
     "AUTOMATICALLY_REPORT_PROBLEMS",

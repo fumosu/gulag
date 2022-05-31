@@ -231,6 +231,7 @@ class Player:
     __slots__ = (
         "token",
         "id",
+        "discord_id",
         "name",
         "safe_name",
         "pw_bcrypt",
@@ -307,6 +308,8 @@ class Player:
         self.spectating: Optional[Player] = None
         self.match: Optional[Match] = None
         self.stealth = False
+
+        self.discord_id = extras.get("discord_id", 0)
 
         self.clan: Optional[Clan] = extras.get("clan")
         self.clan_priv: Optional[ClanPrivileges] = extras.get("clan_priv")

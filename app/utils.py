@@ -491,21 +491,6 @@ def display_startup_dialog() -> None:
     if app.settings.DEBUG:
         log("running in debug mode", Ansi.LMAGENTA)
 
-    # running on root grants the software potentally dangerous and
-    # unnecessary power over the operating system and is not advised.
-    if os.geteuid() == 0:
-        log(
-            "It is not recommended to run bancho.py as root, especially in production..",
-            Ansi.LYELLOW,
-        )
-
-        if app.settings.DEVELOPER_MODE:
-            log(
-                "The risk is even greater with features "
-                "such as config.advanced enabled.",
-                Ansi.LRED,
-            )
-
 
 def create_config_from_default() -> None:
     """Create the default config from ext/config.sample.py"""
