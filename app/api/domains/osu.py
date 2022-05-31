@@ -1780,6 +1780,21 @@ async def register_account(
     forwarded_ip: str = Header(..., alias="X-Forwarded-For"),
     real_ip: str = Header(..., alias="X-Real-IP"),
 ):
+    # ensure all args passed
+    # are safe for registration.
+    errors: Mapping[str, list[str]] = defaultdict(list)
+
+    if not app.settings.INGAME_REGISTRATION_ENABLED:
+        errors["username"].append("In-game registration is off. Please go to our website to register.")
+        errors["user_email"].append("In-game registration is off. Please go to our website to register.")
+        errors["password"].append("In-game registration is off. Please go to our website to register.")
+        errors = {k: ["\n".join(v)] for k, v in errors.items()}
+        errors_full = {"form_error": {"user": errors}}
+        return ORJSONResponse(
+            content=errors_full,
+            status_code=status.HTTP_400_BAD_REQUEST,
+        )
+
     safe_name = make_safe_name(username)
 
     if not all((username, email, pw_plaintext)):
@@ -1787,10 +1802,6 @@ async def register_account(
             content=b"Missing required params",
             status_code=status.HTTP_400_BAD_REQUEST,
         )
-
-    # ensure all args passed
-    # are safe for registration.
-    errors: Mapping[str, list[str]] = defaultdict(list)
 
     # Usernames must:
     # - be within 2-15 characters in length

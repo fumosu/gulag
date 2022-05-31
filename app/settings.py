@@ -22,6 +22,8 @@ OSU_API_KEY: Secret = config("OSU_API_KEY", cast=Secret)
 DOMAIN: str = config("DOMAIN", default="cmyui.xyz")
 MIRROR_URL: str = config("MIRROR_URL", default="https://api.chimu.moe/v1")
 
+INGAME_REGISTRATION_ENABLED: bool = config("INGAME_REGISTRATION_ENABLED", cast=bool)
+
 COMMAND_PREFIX: str = config("COMMAND_PREFIX", default="!")
 
 SEASONAL_BGS: CommaSeparatedStrings = config(
