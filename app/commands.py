@@ -599,7 +599,7 @@ async def request(ctx: Context) -> Optional[str]:
         {"map_id": bmap.id, "user_id": ctx.player.id, "status": new_status},
     )
 
-    helpers.beatmap_request(ctx.player, bmap, ctx.args[1], new_status)
+    await helpers.beatmap_request(ctx.player, bmap, ctx.args[1], new_status)
 
     return "Request submitted."
 
@@ -738,7 +738,7 @@ async def _map(ctx: Context) -> Optional[str]:
             {"map_ids": map_ids},
         )
 
-    helpers.beatmap_update(ctx.player, bmap, ctx.args[1], new_status)
+    await helpers.beatmap_update(ctx.player, bmap, ctx.args[1], new_status)
 
     return f"{bmap.embed} updated to {new_status!s}."
 
