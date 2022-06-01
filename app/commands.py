@@ -862,8 +862,8 @@ async def silence(ctx: Context) -> Optional[str]:
 @command(Privileges.MODERATOR, hidden=True)
 async def unsilence(ctx: Context) -> Optional[str]:
     """Unsilence a specified player."""
-    if len(ctx.args) != 1:
-        return "Invalid syntax: !unsilence <name>"
+    if len(ctx.args) != 2:
+        return "Invalid syntax: !unsilence <name> <reason>"
 
     if not (t := await app.state.sessions.players.from_cache_or_sql(name=ctx.args[0])):
         return f'"{ctx.args[0]}" not found.'
@@ -874,7 +874,9 @@ async def unsilence(ctx: Context) -> Optional[str]:
     if t.priv & Privileges.STAFF and not ctx.player.priv & Privileges.DEVELOPER:
         return "Only developers can manage staff members."
 
-    await t.unsilence(ctx.player)
+    reason = " ".join(ctx.args[1:])
+
+    await t.unsilence(ctx.player, reason)
     return f"{t} was unsilenced."
 
 

@@ -585,7 +585,7 @@ class Player:
 
         log(log_msg, Ansi.LRED)
 
-        post_logs(self, reason, "restrict", admin)
+        await post_logs(self, reason, "restrict", admin)
 
         if self.online:
             # log the user out if they're offline, this
@@ -606,7 +606,7 @@ class Player:
 
         log(log_msg, Ansi.LRED)
 
-        post_logs(self, reason, "flag", admin)
+        await post_logs(self, reason, "flag", admin)
 
     async def unrestrict(self, admin: Player, reason: str) -> None:
         """Restrict `self` for `reason`, and log to sql."""
@@ -640,7 +640,7 @@ class Player:
 
         log(log_msg, Ansi.LRED)
 
-        post_logs(self, reason, "unrestrict", admin)
+        await post_logs(self, reason, "unrestrict", admin)
 
         if self.online:
             # log the user out if they're offline, this
@@ -669,13 +669,15 @@ class Player:
         # wipe their messages from any channels.
         app.state.sessions.players.enqueue(app.packets.user_silenced(self.id))
 
+        await post_logs(self, reason, "silence", admin)
+
         # remove them from multiplayer match (if any).
         if self.match:
             self.leave_match()
 
         log(f"Silenced {self}.", Ansi.LCYAN)
 
-    async def unsilence(self, admin: Player) -> None:
+    async def unsilence(self, admin: Player, reason: str) -> None:
         """Unsilence `self`, and log to sql."""
         self.silence_end = int(time.time())
 
@@ -690,6 +692,8 @@ class Player:
             "VALUES (:from, :to, :action, NULL, NOW())",
             {"from": admin.id, "to": self.id, "action": "unsilence"},
         )
+
+        await post_logs(self, "unsilence", reason, admin)
 
         # inform the user's client
         self.enqueue(app.packets.silence_end(0))
