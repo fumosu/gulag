@@ -42,6 +42,7 @@ from app.objects.score import Score
 from app.utils import escape_enum
 from app.utils import make_safe_name
 from app.utils import pymysql_encode
+from common.commands.helpers import post_logs
 
 if TYPE_CHECKING:
     from app.objects.achievement import Achievement
@@ -584,14 +585,28 @@ class Player:
 
         log(log_msg, Ansi.LRED)
 
-        if webhook_url := app.settings.DISCORD_AUDIT_LOG_WEBHOOK:
-            webhook = Webhook(webhook_url, content=log_msg)
-            await webhook.post(app.state.services.http)
+        post_logs(self, reason, "restrict", admin)
 
         if self.online:
             # log the user out if they're offline, this
             # will simply relog them and refresh their app.state
             self.logout()
+
+    async def flag(self, admin: Player, reason: str) -> None:
+        """Flag `self` for `reason`, and log to sql."""
+
+        await app.state.services.database.execute(
+            "INSERT INTO logs "
+            "(`from`, `to`, `action`, `msg`, `time`) "
+            "VALUES (:from, :to, :action, :msg, NOW())",
+            {"from": admin.id, "to": self.id, "action": "flag", "msg": reason},
+        )
+
+        log_msg = f"{admin} flagged {self} for: {reason}."
+
+        log(log_msg, Ansi.LRED)
+
+        post_logs(self, reason, "flag", admin)
 
     async def unrestrict(self, admin: Player, reason: str) -> None:
         """Restrict `self` for `reason`, and log to sql."""
@@ -625,9 +640,7 @@ class Player:
 
         log(log_msg, Ansi.LRED)
 
-        if webhook_url := app.settings.DISCORD_AUDIT_LOG_WEBHOOK:
-            webhook = Webhook(webhook_url, content=log_msg)
-            await webhook.post(app.state.services.http)
+        post_logs(self, reason, "unrestrict", admin)
 
         if self.online:
             # log the user out if they're offline, this
