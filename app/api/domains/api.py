@@ -13,7 +13,11 @@ from fastapi import status
 from fastapi.param_functions import Depends
 from fastapi.param_functions import Query
 from fastapi.responses import ORJSONResponse
-from fastapi.responses import StreamingResponse
+from fastapi.responses import Response
+from datetime import datetime
+from datetime import timedelta
+from os import listdir
+from random import choice
 
 import app.packets
 import app.state
@@ -29,6 +33,7 @@ AVATARS_PATH = SystemPath.cwd() / ".data/avatars"
 BEATMAPS_PATH = SystemPath.cwd() / ".data/osu"
 REPLAYS_PATH = SystemPath.cwd() / ".data/osr"
 SCREENSHOTS_PATH = SystemPath.cwd() / ".data/ss"
+FUMO_PATH = SystemPath.cwd() / ".data/fumo"
 
 
 router = APIRouter(tags=["bancho.py API"])
@@ -62,6 +67,7 @@ router = APIRouter(tags=["bancho.py API"])
 # POST/PUT /set_player_info: update user information (updates whatever received).
 
 DATETIME_OFFSET = 0x89F7FF5F7B58000
+VALID_EXT = ('png', 'jpg', 'jpeg', 'gif')
 
 
 def format_clan_basic(clan: Clan) -> dict[str, object]:
@@ -666,8 +672,8 @@ async def api_get_replay(
     raw_replay_data = replay_file.read_bytes()
 
     if include_headers:
-        return StreamingResponse(
-            raw_replay_data,
+        return Response(
+            bytes(raw_replay_data),
             media_type="application/octet-stream",
             headers={
                 "Content-Description": "File Transfer",
@@ -721,7 +727,7 @@ async def api_get_replay(
     replay_data = bytearray()
 
     # pack first section of headers.
-    replay_data += struct.pack("<Bi", row["mode"], 20200207)  # TODO: osuver
+    replay_data += struct.pack("<Bi", GameMode(row["mode"]).as_vanilla, 20200207)  # TODO: osuver
     replay_data += app.packets.write_string(row["map_md5"])
     replay_data += app.packets.write_string(row["username"])
     replay_data += app.packets.write_string(replay_md5)
@@ -754,8 +760,8 @@ async def api_get_replay(
     # can't submit scores so should not be a problem.
 
     # stream data back to the client
-    return StreamingResponse(
-        replay_data,
+    return Response(
+        bytes(replay_data),
         media_type="application/octet-stream",
         headers={
             "Content-Description": "File Transfer",
@@ -837,8 +843,9 @@ async def api_get_global_leaderboard(
 
     mode = GameMode(mode_arg)
 
-    query_conditions = ["s.mode = :mode", "u.priv & 1", f"s.{sort} > 0"]
-    query_parameters: dict[str, object] = {"mode": mode}
+    timestamp = (datetime.now() - timedelta(days=60)).timestamp()
+    query_conditions = ["s.mode = :mode", "u.priv & 1", f"s.{sort} > 0", "u.latest_activity > :timestamp"]
+    query_parameters: dict[str, object] = {"mode": mode, "timestamp": timestamp}
 
     if country is not None:
         query_conditions.append("u.country = :country")
@@ -937,6 +944,37 @@ async def api_get_pool(
         },
     )
 
+@router.get("/fumo")
+async def api_random_fumo(
+    fumo_id: Optional[int] = Query(None, alias="id"),
+):
+    """Return a random (or a chosen) image of a fumo."""
+
+    if not fumo_id:
+        fumos = listdir(str(FUMO_PATH))
+        random_fumo = choice(fumos)
+        fumo = FUMO_PATH / random_fumo
+        
+        return Response(
+            fumo.read_bytes(),
+        )
+
+    for ext in VALID_EXT:
+        fumo = FUMO_PATH / f"{fumo_id}.{ext}"
+        
+        if ext == VALID_EXT[-1]:
+            if not fumo.exists():
+                return ORJSONResponse(
+                    {"status": "Fumo not found."},
+                    status_code=status.HTTP_404_NOT_FOUND,
+                )
+        else:
+            if not fumo.exists():
+                continue
+
+        return Response(
+            fumo.read_bytes(),
+        )
 
 # def requires_api_key(f: Callable) -> Callable:
 #     @wraps(f)
