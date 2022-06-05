@@ -449,7 +449,7 @@ async def osuSearchHandler(
             return b"-1\nFailed to retrieve data from the beatmap mirror."
 
         try:
-            result = await resp.json(encoding="utf-8")
+            result = await resp.json(content_type=None)
         except Exception as e:
             log(f"An error occured while decoding the JSON response: {e}", Ansi.LRED)
             return b"-1\nFailed to retrieve data from the beatmap mirror."
