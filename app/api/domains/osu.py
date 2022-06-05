@@ -407,8 +407,8 @@ async def lastFM(
     """
 
 DIRECT_SET_INFO_FMTSTR = (
-    "{{{SetID}}}.osz|{{Artist}}|{{Title}}|{{Creator}}|"
-    "{{RankedStatus}}|10.0|{{LastUpdate}}|{{{SetID}}}|"
+    "{{SetID}}.osz|{{Artist}}|{{Title}}|{{Creator}}|"
+    "{{RankedStatus}}|10.0|{{LastUpdate}}|{{SetID}}|"
     "0|{{HasVideo}}|0|0|0|{{diffs}}"  # 0s are threadid, has_story,
     # filesize, filesize_novid.
 )
