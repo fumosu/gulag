@@ -434,7 +434,7 @@ async def osuSearchHandler(
     # eventually we could try supporting these,
     # but it mostly depends on the mirror.
     if query not in ("Newest", "Top+Rated", "Most+Played"):
-        params["query"] = query
+        params["q"] = query
 
     if mode != -1:  # -1 for all
         params["mode"] = mode
@@ -448,7 +448,11 @@ async def osuSearchHandler(
 
             return b"-1\nFailed to retrieve data from the beatmap mirror."
 
-        result = await resp.json()
+        try:
+            result = await resp.json(encoding="utf-8")
+        except Exception as e:
+            log(f"An error occured while decoding the JSON response: {e}", Ansi.LRED)
+            return b"-1\nFailed to retrieve data from the beatmap mirror."
 
     lresult = len(result)  # send over 100 if we receive
     # 100 matches, so the client
