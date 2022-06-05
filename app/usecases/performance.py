@@ -178,17 +178,17 @@ def calculate_performances(
             for score in scores
         ]
 
-        if mode == 0:
+        if mode == (0, 4, 8):
             results = calculate_performances_std(
                 osu_file_path=osu_file_path,
                 scores=std_taiko_catch_scores,
             )
-        elif mode == 1:
+        elif mode == (1, 5):
             results = calculate_performances_taiko(
                 osu_file_path=osu_file_path,
                 scores=std_taiko_catch_scores,
             )
-        elif mode == 2:
+        elif mode == (2, 6):
             results = calculate_performances_catch(
                 osu_file_path=osu_file_path,
                 scores=std_taiko_catch_scores,
