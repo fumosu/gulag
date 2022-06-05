@@ -182,6 +182,7 @@ def calculate_performances(
             results = calculate_performances_std(
                 osu_file_path=osu_file_path,
                 scores=std_taiko_catch_scores,
+                mode=mode,
             )
         elif mode in (1, 5):
             results = calculate_performances_taiko(
