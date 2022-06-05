@@ -167,7 +167,7 @@ def calculate_performances(
     mods: Optional[int],
     scores: list[ScoreDifficultyParams],
 ) -> list[DifficultyRating]:
-    if mode in (0, 1, 2):
+    if mode in (0, 1, 2, 4, 5, 6, 8):
         std_taiko_catch_scores: list[StdTaikoCatchScore] = [
             {
                 "mods": mods,
