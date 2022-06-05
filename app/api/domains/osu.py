@@ -1662,7 +1662,7 @@ async def get_osz(
 ):
     """Handle a map download request (osu.ppy.sh/d/*)."""
     return RedirectResponse(
-        url=f"{app.settings.MIRROR_URL}/d/{map_set_id}",
+        url=f"https://bm6.fumosu.pw/d/{map_set_id}",
         status_code=status.HTTP_301_MOVED_PERMANENTLY,
     )
 
