@@ -379,7 +379,7 @@ class Score:
 
         result = app.usecases.performance.calculate_performances(
             osu_file_path=str(osu_file_path),
-            mode=mode_vn,
+            mode=int(self.mode),
             mods=int(self.mods),
             scores=[score_args],
         )
