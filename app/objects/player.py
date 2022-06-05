@@ -42,7 +42,7 @@ from app.objects.score import Score
 from app.utils import escape_enum
 from app.utils import make_safe_name
 from app.utils import pymysql_encode
-from common.commands.helpers import post_logs
+from common.commands.helpers import post_log
 
 if TYPE_CHECKING:
     from app.objects.achievement import Achievement
@@ -585,7 +585,7 @@ class Player:
 
         log(log_msg, Ansi.LRED)
 
-        await post_logs(self, reason, "restrict", admin)
+        await post_log(self, reason, "restrict", admin)
 
         if self.online:
             # log the user out if they're offline, this
@@ -606,7 +606,7 @@ class Player:
 
         log(log_msg, Ansi.LRED)
 
-        await post_logs(self, reason, "flag", admin)
+        await post_log(self, reason, "flag", admin)
 
     async def unrestrict(self, admin: Player, reason: str) -> None:
         """Restrict `self` for `reason`, and log to sql."""
@@ -640,7 +640,7 @@ class Player:
 
         log(log_msg, Ansi.LRED)
 
-        await post_logs(self, reason, "unrestrict", admin)
+        await post_log(self, reason, "unrestrict", admin)
 
         if self.online:
             # log the user out if they're offline, this
@@ -669,7 +669,7 @@ class Player:
         # wipe their messages from any channels.
         app.state.sessions.players.enqueue(app.packets.user_silenced(self.id))
 
-        await post_logs(self, reason, "silence", admin)
+        await post_log(self, reason, "silence", admin)
 
         # remove them from multiplayer match (if any).
         if self.match:
@@ -693,7 +693,7 @@ class Player:
             {"from": admin.id, "to": self.id, "action": "unsilence"},
         )
 
-        await post_logs(self, "unsilence", reason, admin)
+        await post_log(self, "unsilence", reason, admin)
 
         # inform the user's client
         self.enqueue(app.packets.silence_end(0))
