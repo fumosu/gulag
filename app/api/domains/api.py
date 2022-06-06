@@ -402,6 +402,7 @@ async def api_get_player_scores(
 
     # fetch & return info from sql
     for row in rows:
+        row["mods_readable"] = Mods(row["mods"]).__repr__()
         bmap = await Beatmap.from_md5(row.pop("map_md5"))
         row["beatmap"] = bmap.as_dict if bmap else None
 
