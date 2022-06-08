@@ -1073,21 +1073,23 @@ class Player:
         return rank + 1 if rank is not None else 0
 
     async def update_rank(self, mode: GameMode) -> int:
+        if self.restricted:
+            return 0
+
         country = self.geoloc["country"]["acronym"]
         stats = self.stats[mode]
 
-        if not self.restricted:
-            # global rank
-            await app.state.services.redis.zadd(
-                f"bancho:leaderboard:{mode.value}",
-                {str(self.id): stats.pp},
-            )
+        # global rank
+        await app.state.services.redis.zadd(
+            f"bancho:leaderboard:{mode.value}",
+            {str(self.id): stats.pp},
+        )
 
-            # country rank
-            await app.state.services.redis.zadd(
-                f"bancho:leaderboard:{mode.value}:{country}",
-                {str(self.id): stats.pp},
-            )
+        # country rank
+        await app.state.services.redis.zadd(
+            f"bancho:leaderboard:{mode.value}:{country}",
+            {str(self.id): stats.pp},
+        )
 
         return await self.get_global_rank(mode)
 
