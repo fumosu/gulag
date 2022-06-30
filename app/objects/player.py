@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import time
 import uuid
+from datetime import datetime, timedelta
 from dataclasses import dataclass
 from datetime import date
 from enum import IntEnum
@@ -24,7 +25,6 @@ from app.constants.gamemodes import GameMode
 from app.constants.mods import Mods
 from app.constants.privileges import ClientPrivileges
 from app.constants.privileges import Privileges
-from app.discord import Webhook
 from app.logging import Ansi
 from app.logging import log
 from app.objects.channel import Channel
@@ -246,6 +246,7 @@ class Player:
         "spectating",
         "match",
         "stealth",
+        "sort",
         "clan",
         "clan_priv",
         "achievements",
@@ -257,6 +258,7 @@ class Player:
         "away_msg",
         "silence_end",
         "donor_end",
+        "freeze_end",
         "in_lobby",
         "client_details",
         "pres_filter",
@@ -310,6 +312,8 @@ class Player:
         self.match: Optional[Match] = None
         self.stealth = False
 
+        self.sort = extras.get("sort", None)
+
         self.discord_id = extras.get("discord_id", 0)
 
         self.clan: Optional[Clan] = extras.get("clan")
@@ -331,6 +335,7 @@ class Player:
         self.away_msg: Optional[str] = None
         self.silence_end = extras.get("silence_end", 0)
         self.donor_end = extras.get("donor_end", 0)
+        self.freeze_end = extras.get("freeze_end", 0)
         self.in_lobby = False
 
         self.client_details: Optional[ClientDetails] = extras.get("client_details")
@@ -446,6 +451,11 @@ class Player:
     def restricted(self) -> bool:
         """Return whether the player is restricted."""
         return not self.priv & Privileges.NORMAL
+
+    @cached_property
+    def frozen(self) -> bool:
+        """Return whether the player is frozen."""
+        return self.priv & Privileges.FROZEN
 
     @property
     def gm_stats(self) -> ModeData:
@@ -591,6 +601,45 @@ class Player:
             # log the user out if they're offline, this
             # will simply relog them and refresh their app.state
             self.logout()
+
+    async def freeze(self, admin: Player, reason: str) -> None:
+        """Freeze `self` for `reason`, and log to sql."""
+        await self.add_privs(Privileges.FROZEN)
+
+        await app.state.services.database.execute(
+            "INSERT INTO logs "
+            "(`from`, `to`, `action`, `msg`, `time`) "
+            "VALUES (:from, :to, :action, :msg, NOW())",
+            {"from": admin.id, "to": self.id, "action": "freeze", "msg": reason},
+        )
+
+        await app.state.services.database.execute(
+            "UPDATE users SET freeze_end = :freeze_end WHERE id = :userid",
+            {"freeze_end": time.mktime((datetime.now() + timedelta(weeks=1)).timetuple()), "userid": self.id},
+        )
+
+        log_msg = f"{admin} froze {self} for: {reason}."
+
+        log(log_msg, Ansi.LRED)
+
+        await post_log(self, reason, "freeze", admin)
+
+    async def unfreeze(self, admin: Player, reason: str) -> None:
+        """Unfreeze `self` for `reason`, and log to sql."""
+        await self.remove_privs(Privileges.FROZEN)
+
+        await app.state.services.database.execute(
+            "INSERT INTO logs "
+            "(`from`, `to`, `action`, `msg`, `time`) "
+            "VALUES (:from, :to, :action, :msg, NOW())",
+            {"from": admin.id, "to": self.id, "action": "unfreeze", "msg": reason},
+        )
+
+        log_msg = f"{admin} unfroze {self} for: {reason}."
+
+        log(log_msg, Ansi.LRED)
+
+        await post_log(self, reason, "unfreeze", admin)
 
     async def flag(self, admin: Player, reason: str) -> None:
         """Flag `self` for `reason`, and log to sql."""

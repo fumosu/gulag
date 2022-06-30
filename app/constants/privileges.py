@@ -26,6 +26,9 @@ class Privileges(IntFlag):
     SUPPORTER = 1 << 4
     PREMIUM = 1 << 5
 
+    # must send an liveplay to the staff in a week else they get restricted.
+    FROZEN = 1 << 6
+
     # notable users, receives some extra benefits.
     ALUMNI = 1 << 7
 

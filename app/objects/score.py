@@ -16,6 +16,7 @@ from app.constants.clientflags import ClientFlags
 from app.constants.gamemodes import GameMode
 from app.constants.mods import Mods
 from app.objects.beatmap import Beatmap
+from common.utils.score_calc import calc_score
 from app.usecases.performance import ScoreDifficultyParams
 from app.utils import escape_enum
 from app.utils import pymysql_encode
@@ -385,6 +386,15 @@ class Score:
         )
 
         return result[0]["performance"], result[0]["star_rating"]
+
+    def calculate_score(self, osu_file_path: Path) -> int:
+        """Calculate relax/autopilot score."""
+        result = calc_score(
+            self, 
+            str(osu_file_path)
+        )
+
+        return result
 
     async def calculate_status(self) -> None:
         """Calculate the submission status of a submitted score."""

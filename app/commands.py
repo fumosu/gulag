@@ -573,6 +573,27 @@ async def _with(ctx: Context) -> Optional[str]:
     )
 
 
+@command(Privileges.NORMAL)
+async def sort(ctx: Context) -> Optional[str]:
+    """Changes user's leaderboard sorting."""
+    if (
+        len(ctx.args) != 1
+        or ctx.args[0] not in ("pp", "score")
+    ):
+        return "Invalid syntax: !sort <pp/score>"
+
+    if ctx.player.sort == ctx.args[0]:
+        return f"Your leaderboard sorting is already set to {ctx.args[0]}!"
+
+    await app.state.services.database.execute(
+        "UPDATE users SET sort = :sort WHERE id = :userid",
+        {"sort": ctx.args[0], "userid": ctx.player.id}
+    )
+
+    ctx.player.sort = ctx.args[0]
+
+    return "Leaderboard sorting updated."
+
 @command(Privileges.NORMAL, aliases=["req"])
 async def request(ctx: Context) -> Optional[str]:
     """Request a beatmap for nomination."""
@@ -644,15 +665,15 @@ async def requests(ctx: Context) -> Optional[str]:
         return "Invalid syntax: !requests"
 
     rows = await app.state.services.database.fetch_all(
-        "SELECT map_id, player_id, status, datetime FROM map_requests WHERE active = 1",
+        "SELECT id, map_id, player_id, status, datetime FROM map_requests WHERE active = 1",
     )
 
     if not rows:
-        return "The queue is clean! (0 map request(s))"
+        return "The queue is clean! (0 map request)"
 
     l = [f"Total requests: {len(rows)}"]
 
-    for (map_id, player_id, status, dt) in rows:
+    for (id, map_id, player_id, status, dt) in rows:
         # find player & map for each row, and add to output.
         if not (p := await app.state.sessions.players.from_cache_or_sql(id=player_id)):
             l.append(f"Failed to find requesting player ({player_id})?")
@@ -664,10 +685,22 @@ async def requests(ctx: Context) -> Optional[str]:
 
         req_status = f"{RankedStatus(status)!s}".lower()
 
-        l.append(f"[{p.embed} @ {dt:%b %d %I:%M%p}] requested {bmap.embed} to be {req_status}!")
+        l.append(f"#{id}: [{p.embed} @ {dt:%b %d %I:%M%p}] requested {bmap.embed} to be {req_status}!")
 
     return "\n".join(l)
 
+@command(Privileges.NOMINATOR, hidden=True)
+async def deny(ctx: Context) -> Optional[str]:
+    """Removes a request from the queue."""
+    if len(ctx.args) != 1:
+        return "Invalid syntax: !deny <id>"
+    
+    await app.state.services.database.execute(
+        "DELETE FROM map_requests WHERE id = :request_id",
+        {"request_id": ctx.args[0]}
+    )
+
+    return "Request denied!"
 
 _status_str_to_int_map = {"unrank": 0, "rank": 2, "love": 5}
 
@@ -1206,128 +1239,6 @@ async def stealth(ctx: Context) -> Optional[str]:
     ctx.player.stealth = not ctx.player.stealth
 
     return f'Stealth {"enabled" if ctx.player.stealth else "disabled"}.'
-
-
-@command(Privileges.DEVELOPER)
-async def recalc(ctx: Context) -> Optional[str]:
-    """Recalculate pp for a given map, or all maps."""
-    # NOTE: at the moment this command isn't very optimal and re-parses
-    # the beatmap file each iteration; this will be heavily improved.
-    if len(ctx.args) != 1 or ctx.args[0] not in ("map", "all"):
-        return "Invalid syntax: !recalc <map/all>"
-
-    if ctx.args[0] == "map":
-        # by specific map, use their last /np
-        if time.time() >= ctx.player.last_np["timeout"]:
-            return "Please /np a map first!"
-
-        bmap: Beatmap = ctx.player.last_np["bmap"]
-
-        osu_file_path = BEATMAPS_PATH / f"{bmap.id}.osu"
-        if not await ensure_local_osu_file(osu_file_path, bmap.id, bmap.md5):
-            return "Mapfile could not be found; this incident has been reported."
-
-        async with (
-            app.state.services.database.connection() as score_select_conn,
-            app.state.services.database.connection() as update_conn,
-        ):
-            with OppaiWrapper() as ezpp:
-                ezpp.set_mode(0)  # TODO: other modes
-                for mode in (0, 4, 8):  # vn!std, rx!std, ap!std
-                    # TODO: this should be using an async generator
-                    for row in await score_select_conn.fetch_all(
-                        "SELECT id, acc, mods, max_combo, nmiss "
-                        "FROM scores "
-                        "WHERE map_md5 = :map_md5 AND mode = :mode",
-                        {"map_md5": bmap.md5, "mode": mode},
-                    ):
-                        ezpp.set_mods(row["mods"])
-                        ezpp.set_nmiss(row["nmiss"])  # clobbers acc
-                        ezpp.set_combo(row["max_combo"])
-                        ezpp.set_accuracy_percent(row["acc"])
-
-                        ezpp.calculate(str(osu_file_path))
-
-                        pp = ezpp.get_pp()
-
-                        if math.isinf(pp) or math.isnan(pp):
-                            continue
-
-                        await update_conn.execute(
-                            "UPDATE scores SET pp = :pp WHERE id = :score_id",
-                            {"pp": pp, "score_id": row["id"]},
-                        )
-
-        return "Map recalculated."
-    else:
-        # recalc all plays on the server, on all maps
-        staff_chan = app.state.sessions.channels["#staff"]  # log any errs here
-
-        async def recalc_all() -> None:
-            staff_chan.send_bot(f"{ctx.player} started a full recalculation.")
-            st = time.time()
-
-            async with (
-                app.state.services.database.connection() as bmap_select_conn,
-                app.state.services.database.connection() as score_select_conn,
-                app.state.services.database.connection() as update_conn,
-            ):
-                # TODO: should be aiter
-                for bmap_row in await bmap_select_conn.fetch_all(
-                    "SELECT id, md5 FROM maps WHERE passes > 0",
-                ):
-                    bmap_id = bmap_row["id"]
-                    bmap_md5 = bmap_row["md5"]
-
-                    osu_file_path = BEATMAPS_PATH / f"{bmap_id}.osu"
-                    if not await ensure_local_osu_file(
-                        osu_file_path,
-                        bmap_id,
-                        bmap_md5,
-                    ):
-                        staff_chan.send_bot(
-                            f"[Recalc] Couldn't find {bmap_id} / {bmap_md5}",
-                        )
-                        continue
-
-                    with OppaiWrapper() as ezpp:
-                        ezpp.set_mode(0)  # TODO: other modes
-                        for mode in (0, 4, 8):  # vn!std, rx!std, ap!std
-                            # TODO: this should be using an async generator
-                            for row in await score_select_conn.fetch_all(
-                                "SELECT id, acc, mods, max_combo, nmiss "
-                                "FROM scores "
-                                "WHERE map_md5 = :map_md5 AND mode = :mode",
-                                {"map_md5": bmap_md5, "mode": mode},
-                            ):
-                                ezpp.set_mods(row["mods"])
-                                ezpp.set_nmiss(row["nmiss"])  # clobbers acc
-                                ezpp.set_combo(row["max_combo"])
-                                ezpp.set_accuracy_percent(row["acc"])
-
-                                ezpp.calculate(str(osu_file_path))
-
-                                pp = ezpp.get_pp()
-
-                                if math.isinf(pp) or math.isnan(pp):
-                                    continue
-
-                                await update_conn.execute(
-                                    "UPDATE scores SET pp = :pp WHERE id = :score_id",
-                                    {"pp": pp, "score_id": row["id"]},
-                                )
-
-                    # leave at least 1/100th of
-                    # a second for handling conns.
-                    await asyncio.sleep(0.01)
-
-            elapsed = app.utils.seconds_readable(int(time.time() - st))
-            staff_chan.send_bot(f"Recalculation complete. | Elapsed: {elapsed}")
-
-        app.state.loop.create_task(recalc_all())
-
-        return "Starting a full recalculation."
-
 
 @command(Privileges.DEVELOPER, hidden=True)
 async def debug(ctx: Context) -> Optional[str]:

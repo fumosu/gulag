@@ -268,8 +268,6 @@ class SendMessage(BasePacket):
             log(f"{p} wrote to {recipient} with insufficient privileges.")
             return
 
-        helpers.send_message(t_chan, msg, p)
-
         # limit message length to 2k chars
         # perhaps this could be dangerous with !py..?
         if len(msg) > 2000:
@@ -280,6 +278,8 @@ class SendMessage(BasePacket):
                 ),
             )
 
+        await helpers.send_message(t_chan, msg, p)
+
         if msg.startswith(app.settings.COMMAND_PREFIX):
             cmd = await commands.process_commands(p, t_chan, msg)
         else:
@@ -289,7 +289,7 @@ class SendMessage(BasePacket):
             # a command was triggered.
             if not cmd["hidden"]:
                 t_chan.send(msg, sender=p)
-                helpers.send_message(t_chan, msg, None, True)
+                await helpers.send_message(t_chan, msg, None, True)
                 if cmd["resp"] is not None:
                     t_chan.send_bot(cmd["resp"])
             else:
@@ -552,7 +552,7 @@ async def login(
 
     user_info = await db_conn.fetch_one(
         "SELECT id, name, priv, pw_bcrypt, country, "
-        "silence_end, clan_id, clan_priv, api_key "
+        "silence_end, clan_id, donor_end, freeze_end, clan_priv, api_key, sort "
         "FROM users WHERE safe_name = :name",
         {"name": app.utils.make_safe_name(login_data["username"])},
     )
@@ -578,6 +578,15 @@ async def login(
             "response_body": app.packets.user_id(-1),
         }
 
+    if not user_info["priv"]:
+        return {
+            "osu_token": "no",
+            "response_body": ( 
+                app.packets.notification("Fumosu: You have been banned!") 
+                + app.packets.user_id(-3)
+            ),
+        }
+
     # get our bcrypt cache
     bcrypt_cache = app.state.cache.bcrypt
     pw_bcrypt = (
@@ -596,7 +605,7 @@ async def login(
                     + app.packets.user_id(-1)
                 ),
             }
-    else:  # ~200ms
+    else:  # ~70ms
         if not helpers.check_password(login_data["password_md5"], pw_bcrypt):
             return {
                 "osu_token": "incorrect-password",
@@ -686,8 +695,6 @@ async def login(
 
     """ All checks passed, player is safe to login """
 
-    t.end()
-
     # get clan & clan priv if we're in a clan
     if user_info["clan_id"] != 0:
         clan = app.state.sessions.clans.get(id=user_info.pop("clan_id"))
@@ -755,8 +762,6 @@ async def login(
     # show up with the yellow name in-game, but everyone
     # gets osu!direct & other in-game perks).
     data += app.packets.bancho_privileges(p.bancho_priv | ClientPrivileges.SUPPORTER)
-
-    data += WELCOME_NOTIFICATION(t.time())
 
     # send all appropriate channel info to our player.
     # the osu! client will attempt to join the channels.
@@ -893,6 +898,18 @@ async def login(
             msg=RESTRICTED_MSG,
             recipient=p.name,
             sender_id=app.state.sessions.bot.id,
+        )
+
+    t.end()
+
+    data += WELCOME_NOTIFICATION(t.time())
+
+    if user_info["priv"] & Privileges.FROZEN:
+        _date = datetime.fromtimestamp(user_info["freeze_end"]).strftime("%d/%m/%Y, %H:%M:%S")
+        data += app.packets.notification(
+            "You're currently frozen!\n"
+            + f"You have time until {_date} to send a liveplay to staff.\n"
+            + "After that time, you will be promptly restricted."
         )
 
     # TODO: some sort of admin panel for staff members?

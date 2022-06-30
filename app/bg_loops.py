@@ -7,8 +7,10 @@ import app.packets
 import app.settings
 import app.state
 from app.constants.privileges import Privileges
+from app.objects.player import Player
 from app.logging import Ansi
 from app.logging import log
+
 from common.bot.init import _make_discord_bot
 from common.utils.tasks import _clear_inactive_lb
 
@@ -31,7 +33,8 @@ async def initialize_housekeeping_tasks() -> None:
                 _update_bot_status(interval=5 * 60),
                 _disconnect_ghosts(interval=OSU_CLIENT_MIN_PING_INTERVAL // 3),
                 _make_discord_bot(),
-                _clear_inactive_lb(5 * 60)
+                _clear_inactive_lb(5 * 60),
+                _restrict_frozen_players(interval=5 * 60)
             )
         },
     )
@@ -92,3 +95,22 @@ async def _update_bot_status(interval: int) -> None:
     while True:
         await asyncio.sleep(interval)
         app.packets.bot_stats.cache_clear()
+
+async def _restrict_frozen_players(interval: int) -> None:
+    """Restrict frozen players, who have not provided a liveplay within a week."""
+    while True:
+        users = await app.state.services.database.fetch_all("SELECT id, freeze_end FROM users WHERE priv & 64")
+
+        if users:
+            for user in users:
+                user = dict(user)
+                if time.time() > user["freeze_end"]:
+                    p = await app.state.sessions.players.from_cache_or_sql(id=user["id"])
+                    await p.remove_privs(Privileges.FROZEN)
+                    
+                    await p.restrict(
+                        admin=app.state.sessions.bot,
+                        reason="Freeze timer expired"
+                    )
+
+        await asyncio.sleep(interval)

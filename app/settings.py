@@ -64,9 +64,17 @@ PP_CACHED_SCORES: list[int] = [
     )
 ]
 
+AUTOFREEZE_PP: list[int] = [
+    int(pp)
+    for pp in config(
+        "AUTOFREEZE_PP",
+        cast=CommaSeparatedStrings,
+    )
+]
+
 AUTOBAN_PP: list[int] = [
-    int(score)
-    for score in config(
+    int(pp)
+    for pp in config(
         "AUTOBAN_PP",
         cast=CommaSeparatedStrings,
     )

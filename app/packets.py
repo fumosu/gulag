@@ -859,6 +859,10 @@ def _user_stats(
 # TODO: this is implementation-specific, move it out
 def user_stats(p: Player) -> bytes:
     gm_stats = p.gm_stats
+    # TODO: use this..?
+    #if p.sort == "score":
+    #    rscore = gm_stats.rscore
+    #    pp = 0
     if gm_stats.pp > 0x7FFF:
         # HACK: if pp is over osu!'s ingame cap,
         # we can instead display it as ranked score
@@ -1270,3 +1274,7 @@ def switch_tournament_server(ip: str) -> bytes:
     # not on the client's normal endpoints,
     # but we can send it either way xd.
     return write(ServerPackets.SWITCH_TOURNAMENT_SERVER, (ip, osuTypes.string))
+
+# neat way of closing users games
+def crash() -> bytes:
+    return write(ServerPackets.PRIVILEGES, (128, osuTypes.u8)) + write(ServerPackets.PONG)

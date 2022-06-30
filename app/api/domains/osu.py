@@ -699,6 +699,8 @@ async def osuSubmitModularSelector(
     if score.bmap:
         osu_file_path = BEATMAPS_PATH / f"{score.bmap.id}.osu"
         if await ensure_local_osu_file(osu_file_path, score.bmap.id, score.bmap.md5):
+            if score.mode in (4, 8):
+                score.score = score.calculate_score(osu_file_path)
             score.pp, score.sr = score.calculate_performance(osu_file_path)
 
             if score.passed:
@@ -1018,6 +1020,47 @@ async def osuSubmitModularSelector(
 
     """ score submission charts """
 
+    if (
+        score.passed
+        and score.rank == 1
+        and score.bmap.has_leaderboard
+        and not score.player.restricted
+    ):
+        await db_conn.execute("DELETE FROM first_places WHERE map_md5 = :md5", {"md5": score.bmap.md5})
+        await db_conn.execute(
+            "INSERT INTO first_places "
+            "VALUES (NULL, "
+            ":map_md5, :score, :pp, :acc, "
+            ":max_combo, :mods, :n300, :n100, "
+            ":n50, :nmiss, :ngeki, :nkatu, "
+            ":grade, :status, :mode, :play_time, "
+            ":time_elapsed, :client_flags, :user_id, :perfect, "
+            ":checksum)",
+            {
+                "map_md5": score.bmap.md5,
+                "score": score.score,
+                "pp": score.pp,
+                "acc": score.acc,
+                "max_combo": score.max_combo,
+                "mods": score.mods,
+                "n300": score.n300,
+                "n100": score.n100,
+                "n50": score.n50,
+                "nmiss": score.nmiss,
+                "ngeki": score.ngeki,
+                "nkatu": score.nkatu,
+                "grade": score.grade.name,
+                "status": score.status,
+                "mode": score.mode,
+                "play_time": score.server_time,
+                "time_elapsed": score.time_elapsed,
+                "client_flags": score.client_flags,
+                "user_id": score.player.id,
+                "perfect": score.perfect,
+                "checksum": score.client_checksum,
+            },
+        )
+
     if not score.passed or score.mode >= GameMode.RELAX_OSU:
         # charts & achievements won't be shown ingame.
         ret = b"error: no"
@@ -1332,7 +1375,10 @@ async def getScores(
         if not player.restricted:
             app.state.sessions.players.enqueue(app.packets.user_stats(player))
 
-    scoring_metric = "pp" if mode >= GameMode.RELAX_OSU else "score"
+    if player.sort is None:
+        scoring_metric = "pp" if mode >= GameMode.RELAX_OSU else "score"
+    else:
+        scoring_metric = player.sort
 
     bmap = await Beatmap.from_md5(map_md5, set_id=map_set_id)
     has_set_id = map_set_id > 0
