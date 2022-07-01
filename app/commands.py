@@ -669,7 +669,7 @@ async def requests(ctx: Context) -> Optional[str]:
     )
 
     if not rows:
-        return "The queue is clean! (0 map request)"
+        return "The queue is clean! (0 map requests)"
 
     l = [f"Total requests: {len(rows)}"]
 
