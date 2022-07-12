@@ -288,7 +288,7 @@ class SendMessage(BasePacket):
             # a command was triggered.
             if not cmd["hidden"]:
                 t_chan.send(msg, sender=p)
-                await helpers.send_message(t_chan, msg, None, True)
+                await helpers.send_message(t_chan, cmd, None, True)
                 if cmd["resp"] is not None:
                     t_chan.send_bot(cmd["resp"])
             else:

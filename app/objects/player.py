@@ -455,7 +455,7 @@ class Player:
     @cached_property
     def frozen(self) -> bool:
         """Return whether the player is frozen."""
-        return self.priv & Privileges.FROZEN
+        return self.priv & Privileges.FROZEN > 0
 
     @property
     def gm_stats(self) -> ModeData:

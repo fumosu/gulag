@@ -213,6 +213,16 @@ async def osuScreenshot(
     log(f"{player} uploaded {filename}.")
     return Response(filename.encode())
 
+@router.get("/web/coins.php")
+async def osuCoins(
+    action: Literal["check", "use", "earn"],
+    player: Player = Depends(authenticate_player_session(Query, "u", "h")),
+    coin_amount: int = Query(..., alias="c"),
+    checksum: str = Query(..., alias="cs"),
+):
+    return b"420"
+
+
 
 @router.get("/web/osu-getfriends.php")
 async def osuGetFriends(
@@ -1061,11 +1071,11 @@ async def osuSubmitModularSelector(
             },
         )
 
-    if not score.passed or score.mode >= GameMode.RELAX_OSU:
+    #if not score.passed or score.mode >= GameMode.RELAX_OSU:
         # charts & achievements won't be shown ingame.
-        ret = b"error: no"
+        #ret = b"error: no"
 
-    else:
+    if True:
         # construct and send achievements & ranking charts to the client
         if score.bmap.awards_ranked_pp and not score.player.restricted:
             achievements = []
