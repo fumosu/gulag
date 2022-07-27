@@ -11,3 +11,4 @@ tools/migrate_v420/scoreMigrator
 recalculator.py
 calc.py
 bruh.py
+venv/
