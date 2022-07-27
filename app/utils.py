@@ -3,6 +3,7 @@ from __future__ import annotations
 import inspect
 import io
 import ipaddress
+import itertools
 import os
 import shutil
 import socket
@@ -15,6 +16,7 @@ from typing import Any
 from typing import Callable
 from typing import Optional
 from typing import TypedDict
+from typing import TYPE_CHECKING
 from typing import TypeVar
 
 import databases.core
@@ -27,6 +29,9 @@ import app.settings
 from app.logging import Ansi
 from app.logging import log
 from app.logging import printc
+
+if TYPE_CHECKING:
+        from app.objects.beatmap import RankedStatus
 
 __all__ = (
     # TODO: organize/sort these

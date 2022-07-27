@@ -14,7 +14,6 @@ from typing import Literal
 from typing import Optional
 from typing import TypedDict
 
-import bcrypt
 import databases.core
 from fastapi import APIRouter
 from fastapi import Response
@@ -586,35 +585,22 @@ async def login(
             ),
         }
 
-    # get our bcrypt cache
-    bcrypt_cache = app.state.cache.bcrypt
-    pw_bcrypt = (
-        user_info["pw_bcrypt"].encode("ISO-8859-1").decode("unicode-escape").encode("ISO-8859-1")
-    )
-    user_info["pw_bcrypt"] = pw_bcrypt
-
     # check credentials against db. algorithms like these are intentionally
     # designed to be slow; we'll cache the results to speed up subsequent logins.
-    if pw_bcrypt in bcrypt_cache:  # ~0.01 ms
-        if login_data["password_md5"] != bcrypt_cache[pw_bcrypt]:
-            return {
-                "osu_token": "incorrect-password",
-                "response_body": (
-                    app.packets.notification(f"Fumosu: Incorrect password")
-                    + app.packets.user_id(-1)
-                ),
-            }
-    else:  # ~70ms
-        if not helpers.check_password(login_data["password_md5"], pw_bcrypt):
-            return {
-                "osu_token": "incorrect-password",
-                "response_body": (
-                    app.packets.notification(f"Fumosu: Incorrect password")
-                    + app.packets.user_id(-1)
-                ),
-            }
+    if not await helpers.check_password(user_info["pw_bcrypt"], login_data["password_md5"], user_info["id"]):
+        return {
+            "osu_token": "incorrect-password",
+            "response_body": (
+                app.packets.notification(f"Fumosu: Incorrect password")
+                + app.packets.user_id(-1)
+            ),
+        }
 
-        bcrypt_cache[pw_bcrypt] = login_data["password_md5"]
+    if not user_info["pw_bcrypt"].startswith("$2a$"):
+        if (pw := await app.state.services.database.fetch_val("SELECT pw_bcrypt FROM users WHERE id = :id", {"id": user_info["id"]})) != user_info["pw_bcrypt"]:
+            user_info["pw_bcrypt"] = pw
+
+    user_info["pw_bcrypt"] = user_info["pw_bcrypt"].encode()
 
     """ login credentials verified """
 

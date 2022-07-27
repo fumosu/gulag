@@ -70,6 +70,7 @@ from app.utils import escape_enum
 from app.utils import make_safe_name
 from app.utils import pymysql_encode
 from common.ac import checks
+from common.utils import other
 
 
 AVATARS_PATH = SystemPath.cwd() / ".data/avatars"
@@ -220,8 +221,7 @@ async def osuCoins(
     coin_amount: int = Query(..., alias="c"),
     checksum: str = Query(..., alias="cs"),
 ):
-    return b"420"
-
+    return b"420" 
 
 
 @router.get("/web/osu-getfriends.php")
@@ -464,10 +464,21 @@ async def osuSearchHandler(
             log(f"An error occured while decoding the JSON response: {e}", Ansi.LRED)
             return b"-1\nFailed to retrieve data from the beatmap mirror."
 
-    lresult = len(result)  # send over 100 if we receive
+    if query not in ("Newest", "Top+Rated", "Most+Played", "", None):
+        _status = RankedStatus.from_osudirect(ranked_status)
+
+        custom = await other.getCustomBeatmaps(query, _status, mode)
+
+        lresult = len(result) + len(custom)  # send over 100 if we receive
+    else:
+        lresult = len(result) # send over 100 if we receive
+        custom = []
     # 100 matches, so the client
     # knows there are more to get
     ret = [f"{'101' if lresult == 100 else lresult}"]
+
+    for map in custom:
+        ret.append(map)
 
     for bmap in result:
         if bmap["ChildrenBeatmaps"] is None:
@@ -1252,7 +1263,7 @@ async def get_leaderboard_scores(
     mods: Mods,
     player: Player,
     scoring_metric: Literal["pp", "score"],
-) -> tuple[list[Mapping[str, Any]], Optional[Mapping[str, Any]]]:
+) -> tuple[list[dict[str, Any]], Optional[dict[str, Any]]]:
     query = [
         f"SELECT s.id, s.{scoring_metric} AS _score, "
         "s.max_combo, s.n50, s.n100, s.n300, "
@@ -1300,6 +1311,8 @@ async def get_leaderboard_scores(
                 "ORDER BY _score DESC LIMIT 1",
                 {"map_md5": map_md5, "mode": mode, "user_id": player.id},
             )
+
+            score_rows = [ dict(score) for score in score_rows ]
 
             if personal_best_score_row:
                 # calculate the rank of the score.
@@ -1469,7 +1482,7 @@ async def getScores(
 
     response_lines: list[str] = [
         # NOTE: fa stands for featured artist (for the ones that may not know)
-        # {ranked_status}|{serv_has_osz2}|{bid}|{bsid}|{len(scores)}|{fa_track_id}|{fa_license_text}
+        # {ranked_status}|{serv_has_osz2}|{bid}|{bsid}|{len(scores)}|{fa_track_id}|{fa_licence_text}
         f"{int(bmap.status)}|false|{bmap.id}|{bmap.set_id}|{len(score_rows)}|0|",
         # {offset}\n{beatmap_name}\n{rating}
         # TODO: server side beatmap offsets
@@ -1484,7 +1497,7 @@ async def getScores(
         response_lines.append(
             SCORE_LISTING_FMTSTR.format(
                 **personal_best_score_row,
-                name=player.full_name,
+                name=player.name,
                 userid=player.id,
                 score=int(personal_best_score_row["_score"]),
                 has_replay="1",
@@ -1493,17 +1506,17 @@ async def getScores(
     else:
         response_lines.append("")
 
-    response_lines.extend(
-        [
+    for idx, s in enumerate(score_rows):
+        if s["userid"] == player.id: s["name"] = player.name
+
+        response_lines.append(
             SCORE_LISTING_FMTSTR.format(
                 **s,
                 score=int(s["_score"]),
                 has_replay="1",
                 rank=idx + 1,
             )
-            for idx, s in enumerate(score_rows)
-        ],
-    )
+        )
 
     return "\n".join(response_lines).encode()
 
@@ -1720,9 +1733,45 @@ async def get_screenshot(
 async def get_osz(
     map_set_id: str = Path(...),
 ):
+    no_video = map_set_id[-1] == "n"
+    if no_video:
+        map_set_id = int(map_set_id[:-1])
+
     """Handle a map download request (osu.ppy.sh/d/*)."""
+    if map_set_id > 999999999:
+        # TODO: unhardcode this lmfao
+        try:
+            file = open(f"/root/BeatmapSubmissionSystem/build/.data/osz/{map_set_id}.osz", "rb")
+        except Exception:
+            return Response(
+                "Map not found.",
+                status_code=status.HTTP_404_NOT_FOUND
+            )
+
+        map_cache = app.state.cache.map_name
+
+        if map_set_id not in map_cache:
+            map_info = await app.state.services.database.fetch_one(
+                "SELECT title, artist FROM maps WHERE set_id = :map_id", 
+                {"map_id": map_set_id}
+            )
+
+            map_name = f"{map_set_id} {map_info['artist']} - {map_info['title']}"
+            map_cache[map_set_id] = map_name
+        else:
+            map_name = map_cache[map_set_id]
+
+        return Response(
+            file.read(),
+            media_type="application/octet-stream",
+            headers={
+                "Content-Description": "File Transfer",
+                "Content-Disposition": f'attachment; filename="{map_name}.osz"',
+            },
+        )
+
     return RedirectResponse(
-        url=f"https://bm6.fumosu.pw/d/{map_set_id}",
+        url=f"https://bm6.fumosu.pw/d/{map_set_id}{'n' if no_video else ''}",
         status_code=status.HTTP_301_MOVED_PERMANENTLY,
     )
 

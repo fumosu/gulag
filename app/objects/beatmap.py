@@ -105,6 +105,7 @@ class RankedStatus(IntEnum):
     Approved = 3
     Qualified = 4
     Loved = 5
+    All = 6 # all ranked statuses
 
     def __str__(self) -> str:
         return {
@@ -157,7 +158,7 @@ class RankedStatus(IntEnum):
                 0: cls.Ranked,
                 2: cls.Pending,
                 3: cls.Qualified,
-                # 4: all ranked statuses lol
+                4: cls.All,
                 5: cls.Pending,  # graveyard
                 7: cls.Ranked,  # played before
                 8: cls.Loved,
@@ -318,6 +319,9 @@ class Beatmap:
     @property
     def url(self) -> str:
         """The osu! beatmap url for `self`."""
+        if self.id > 999999999:
+            return f"https://osu.{app.settings.DOMAIN}/d/{self.set_id}"
+
         return f"https://osu.{app.settings.DOMAIN}/beatmaps/{self.id}"
 
     @property

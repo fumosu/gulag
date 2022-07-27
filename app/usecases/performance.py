@@ -9,10 +9,7 @@ try:  # TODO: ask asottile about this
 except ModuleNotFoundError:
     pass  # utils will handle this for us
 
-from peace_performance_python.objects import Beatmap as PeaceMap
-from peace_performance_python.objects import Calculator as PeaceCalculator
-
-from common.utils.calculator import calculate_performances_std 
+from common.utils.calculator import calculate_performances_std, calculate_performances_taiko, calculate_performances_catch, calculate_performances_mania
 
 class DifficultyRating(TypedDict):
     performance: float
@@ -29,126 +26,6 @@ class StdTaikoCatchScore(TypedDict):
 class ManiaScore(TypedDict):
     mods: Optional[int]
     score: Optional[int]
-
-def calculate_performances_taiko(
-    osu_file_path: str,
-    scores: list[StdTaikoCatchScore],
-) -> list[DifficultyRating]:
-    beatmap = PeaceMap(osu_file_path)  # type: ignore
-
-    results: list[DifficultyRating] = []
-
-    for score in scores:
-        calculator = PeaceCalculator(
-            {
-                "mode": 1,
-                "mods": score["mods"],
-                "acc": score["acc"],
-                "combo": score["combo"],
-                "nmiss": score["nmiss"],
-            },
-        )
-
-        result = calculator.calculate(beatmap)
-
-        pp = result.pp
-        sr = result.stars
-
-        if math.isnan(pp) or math.isinf(pp):
-            # TODO: report to logserver
-            pp = 0.0
-            sr = 0.0
-        else:
-            pp = round(pp, 5)
-
-        results.append(
-            {
-                "performance": pp,
-                "star_rating": sr,
-            },
-        )
-
-    return results
-
-
-def calculate_performances_catch(
-    osu_file_path: str,
-    scores: list[StdTaikoCatchScore],
-) -> list[DifficultyRating]:
-    beatmap = PeaceMap(osu_file_path)  # type: ignore
-
-    results: list[DifficultyRating] = []
-
-    for score in scores:
-        calculator = PeaceCalculator(
-            {
-                "mode": 2,
-                "mods": score["mods"],
-                "acc": score["acc"],
-                "combo": score["combo"],
-                "nmiss": score["nmiss"],
-            },
-        )
-
-        result = calculator.calculate(beatmap)
-
-        pp = result.pp
-        sr = result.stars
-
-        if math.isnan(pp) or math.isinf(pp):
-            # TODO: report to logserver
-            pp = 0.0
-            sr = 0.0
-        else:
-            pp = round(pp, 5)
-
-        results.append(
-            {
-                "performance": pp,
-                "star_rating": sr,
-            },
-        )
-
-    return results
-
-
-def calculate_performances_mania(
-    osu_file_path: str,
-    scores: list[ManiaScore],
-) -> list[DifficultyRating]:
-    beatmap = PeaceMap(osu_file_path)  # type: ignore
-
-    results: list[DifficultyRating] = []
-
-    for score in scores:
-        calculator = PeaceCalculator(
-            {
-                "mode": 3,
-                "mods": score["mods"],
-                "score": score["score"],
-            },
-        )
-
-        result = calculator.calculate(beatmap)
-
-        pp = result.pp
-        sr = result.stars
-
-        if math.isnan(pp) or math.isinf(pp):
-            # TODO: report to logserver
-            pp = 0.0
-            sr = 0.0
-        else:
-            pp = round(pp, 5)
-
-        results.append(
-            {
-                "performance": pp,
-                "star_rating": sr,
-            },
-        )
-
-    return results
 
 
 class ScoreDifficultyParams(TypedDict, total=False):

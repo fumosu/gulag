@@ -28,6 +28,7 @@ from app.api import middlewares
 from app.logging import Ansi
 from app.logging import log
 from app.objects import collections
+from common import domains as bmapDomains
 
 
 class BanchoAPI(FastAPI):
@@ -173,7 +174,8 @@ def init_routes(asgi_app: BanchoAPI) -> None:
             asgi_app.host(f"{subdomain}.{domain}", domains.cho.router)
 
         asgi_app.host(f"osu.{domain}", domains.osu.router)
-        asgi_app.host(f"b.{domain}", domains.map.router)
+        asgi_app.host(f"b.{domain}", bmapDomains.map.router)
+        asgi_app.host(f"assets.{domain}", bmapDomains.assets.router)
 
         # bancho.py's developer-facing api
         asgi_app.host(f"api.{domain}", domains.api.router)
