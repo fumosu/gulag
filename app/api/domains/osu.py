@@ -500,7 +500,7 @@ async def osuSearchHandler(
         # convert to osu!api status
         params["status"] = RankedStatus.from_osudirect(ranked_status).osu_api
 
-    async with app.state.services.http.get(search_url, params=params) as resp:
+    async with app.state.services.http_client.get(search_url, params=params) as resp:
         if await resp.text() == "null":
             return b"-1\nFailed to retrieve data from the beatmap mirror."
 
@@ -523,8 +523,7 @@ async def osuSearchHandler(
     # knows there are more to get
     ret = [f"{'101' if lresult == 100 else lresult}"]
 
-    for map in custom:
-        ret.append(map)
+    ret.extend(custom)
 
     for bmap in result:
         if bmap["ChildrenBeatmaps"] is None:
@@ -1422,6 +1421,12 @@ async def getScores(
         stacktrace = app.utils.get_appropriate_stacktrace()
         await app.state.services.log_strange_occurrence(stacktrace)
 
+    if leaderboard_version != 4:
+        await player.restrict(
+            admin=app.state.sessions.bot,
+            reason="Custom client (leaderboard version mismatch)"
+        )
+
     # check if this md5 has already been  cached as
     # unsubmitted/needs update to reduce osu!api spam
     if map_md5 in app.state.cache.unsubmitted:
@@ -1796,6 +1801,8 @@ async def get_osz(
     no_video = map_set_id[-1] == "n"
     if no_video:
         map_set_id = int(map_set_id[:-1])
+    else:
+        map_set_id = int(map_set_id)
 
     """Handle a map download request (osu.ppy.sh/d/*)."""
     if map_set_id > 999999999:

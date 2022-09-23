@@ -12,7 +12,6 @@ from app.logging import Ansi
 from app.logging import log
 
 from common.bot.init import _make_discord_bot
-from common.utils.tasks import _clear_inactive_lb
 
 __all__ = ("initialize_housekeeping_tasks",)
 
@@ -33,7 +32,6 @@ async def initialize_housekeeping_tasks() -> None:
                 _update_bot_status(interval=5 * 60),
                 _disconnect_ghosts(interval=OSU_CLIENT_MIN_PING_INTERVAL // 3),
                 _make_discord_bot(),
-                _clear_inactive_lb(5 * 60),
                 _restrict_frozen_players(interval=5 * 60)
             )
         },

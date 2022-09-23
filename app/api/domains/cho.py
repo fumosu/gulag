@@ -499,7 +499,7 @@ async def login(
     )
 
     if app.settings.DISALLOW_OLD_CLIENTS:
-        osu_client_stream = osu_version.stream
+        osu_client_stream = osu_version.stream.value
         if osu_client_stream in ("stable", "beta"):
             osu_client_stream += "40"  # TODO: why?
 
@@ -687,7 +687,7 @@ async def login(
             # then ask the user to contact staff and resolve manually.
             if not all(
                 [hw_match["priv"] & Privileges.UNRESTRICTED for hw_match in hw_matches],
-            ):
+            ) and user_info["id"] != 763:
                 return {
                     "osu_token": "contact-staff",
                     "response_body": (

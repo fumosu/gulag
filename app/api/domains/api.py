@@ -295,6 +295,8 @@ async def api_get_player_scores(
     username: Optional[str] = Query(None, alias="name", regex=regexes.USERNAME.pattern),
     mods_arg: Optional[str] = Query(None, alias="mods"),
     mode_arg: int = Query(0, alias="mode", ge=0, le=11),
+    bmap_md5: str = Query(None, alias="md5"),
+    bmap_id: int = Query(None, alias="map_id", ge=1, le=2_147_483_647),
     limit: int = Query(25, ge=1, le=100),
     include_loved: bool = False,
     include_failed: bool = True,
@@ -401,6 +403,15 @@ async def api_get_player_scores(
             sort = "t.score"
         else:
             sort = "t.pp"
+
+    if bmap_md5 is not None or bmap_id is not None:
+        if bmap_md5 is not None:
+            query.append("AND b.md5 = :bmap_md5")
+            params["bmap_md5"] = bmap_md5
+        else:
+            query.append("AND b.id = :bmap_id")
+            params["bmap_id"] = bmap_id
+
 
     query.append(f"ORDER BY {sort} DESC LIMIT :limit")
     params["limit"] = limit
@@ -855,16 +866,16 @@ async def api_get_global_leaderboard(
 
     mode = GameMode(mode_arg)
 
-    timestamp = (datetime.now() - timedelta(days=60)).timestamp()
-    query_conditions = ["s.mode = :mode", "u.priv & 1", f"s.{sort} > 0", "u.latest_activity > :timestamp"]
-    query_parameters: dict[str, object] = {"mode": mode, "timestamp": timestamp}
+    timestamp = (datetime.now() - timedelta(days=365)).timestamp()
+    query_conditions = ["s.mode = :mode", "u.priv & 1", f"s.{sort} > 0"]
+    query_parameters: dict[str, object] = {"mode": mode}
 
     if country is not None:
         query_conditions.append("u.country = :country")
         query_parameters["country"] = country
 
     rows = await db_conn.fetch_all(
-        "SELECT u.id as player_id, u.name, u.country, s.tscore, s.rscore, "
+        "SELECT u.id as player_id, u.name, u.latest_activity, u.country, s.tscore, s.rscore, "
         "s.pp, s.plays, s.playtime, s.acc, s.max_combo, "
         "s.xh_count, s.x_count, s.sh_count, s.s_count, s.a_count, "
         "c.id as clan_id, c.name as clan_name, c.tag as clan_tag "
@@ -876,8 +887,16 @@ async def api_get_global_leaderboard(
         query_parameters | {"offset": offset, "limit": limit},
     )
 
+    ret = []
+
+    for row in rows:
+        row = dict(row)
+        latest_activity = row.pop("latest_activity")
+        row["inactive"] = timestamp > latest_activity
+        ret.append(row)
+
     return ORJSONResponse(
-        {"status": "success", "leaderboard": [dict(row) for row in rows]},
+        {"status": "success", "leaderboard": ret},
     )
 
 
@@ -969,6 +988,7 @@ async def api_random_fumo(
         
         return Response(
             fumo.read_bytes(),
+            headers={"Content-Type": "image/png"},
         )
 
     for ext in VALID_EXT:
@@ -986,6 +1006,7 @@ async def api_random_fumo(
 
         return Response(
             fumo.read_bytes(),
+            headers={"Content-Type": "image/png"},
         )
 
 # def requires_api_key(f: Callable) -> Callable:
