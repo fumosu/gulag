@@ -1808,7 +1808,7 @@ async def get_osz(
     if map_set_id > 999999999:
         # TODO: unhardcode this lmfao
         try:
-            file = open(f"/root/BeatmapSubmissionSystem/build/.data/osz/{map_set_id}.osz", "rb")
+            file = open(f"/home/fumosu/src/BeatmapSubmissionSystem/build/.data/osz/{map_set_id}.osz", "rb")
         except Exception:
             return Response(
                 "Map not found.",
